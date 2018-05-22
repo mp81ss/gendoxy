@@ -14,8 +14,8 @@ Once the package is loaded, there are four variables that control documentation 
 
 # Usage
 Put the curson on the first line of a declaration to document (not necessarely at the beginning of line), then run command:   
-```M-x gendoxy-tag```
-Thsi will document your declaration and all its sub-items if any.
+```M-x gendoxy-tag```   
+This will document your declaration and all its sub-items if any.
 If you want to document a declaration, __but not__ its subitems, then run the command:
 `M-x gendoxy-tag-header`
 
