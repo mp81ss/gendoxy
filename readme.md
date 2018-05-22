@@ -13,9 +13,9 @@ Once the package is loaded, there are four variables that control documentation 
 * `gendoxy-details-empty-line`: If not _nil_, will use an empty line instead of the details tag to add details. Note that this has effect if _gendoxy-skip-details_ is _nil_ ONLY.
 
 # Usage
-Put the curson on the first line of a declaration to document (not necessarely at the beginning of line), then run command:   
+Put the cursor on the first line of a declaration to document (not necessarely at the beginning of line), then run command:   
 `M-x gendoxy-tag`   
-This will document your declaration and all its sub-items if any.
+This will document your declaration and all its sub-items if any.   
 If you want to document a declaration, __but not__ its subitems, then run the command:   
 `M-x gendoxy-tag-header`
 
