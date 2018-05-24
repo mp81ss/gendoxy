@@ -1,5 +1,7 @@
 # gendoxy - An emacs package to generate doxygen documentation from C code
-This plugin generates [doxygen](http://doxygen.org "dox") documentation from C source code. You can ignore the doxygen rules and parameters documentation may be partially guessed according to some parameters name pattern
+This plugin generates [doxygen](http://doxygen.org "dox") documentation from
+C source code. You can ignore the doxygen rules and parameters documentation
+may be partially guessed according to some parameters name pattern
 
 # Installation
 Put file _gendoxy.el_ in a path accessible to emacs (add-to-list 'load-path ...)   
@@ -10,7 +12,9 @@ Once the package is loaded, there are four variables that control documentation 
 * `gendoxy-backslash`: if not _nil_, will use backslash instead of asperand.
 * `gendoxy-default-text`: Default string used in generated documentation.
 * `gendoxy-skip-details`: If not _nil_, will omit details in header and functions
-* `gendoxy-details-empty-line`: If not _nil_, will use an empty line instead of the details tag to add details. Note that this has effect if _gendoxy-skip-details_ is _nil_ ONLY.
+* `gendoxy-details-empty-line`: If not _nil_, will use an empty line instead of 
+the details tag to add details. Note that this has effect
+if _gendoxy-skip-details_ is _nil_ ONLY.
 
 # Usage
 Put the cursor on the first line of a declaration to document (not necessarely at the beginning of line), then run command:   
@@ -32,3 +36,6 @@ that generates a header documentation for current file
 
 # Notes
 The gendoxy package doesn't define a new mode, just offers some commands to use.
+For a more productive environment, just
+[bind](https://www.gnu.org/software/emacs/manual/html_node/emacs/Key-Bindings.html)
+your favorite key to `gendoxy-tag` and/or `gendoxy-tag-header`
