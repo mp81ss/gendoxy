@@ -9,8 +9,8 @@ Load it in your init file `(load "gendoxy.el")`
 
 # Configuration
 Once the package is loaded, there are four variables that control documentation generation:
-* `gendoxy-backslash`: if not _nil_, will use backslash instead of asperand.
-* `gendoxy-default-text`: Default string used in generated documentation.
+* `gendoxy-backslash`: if not _nil_, will use backslash instead of asperand
+* `gendoxy-default-text`: Default string used in generated documentation
 * `gendoxy-skip-details`: If not _nil_, will omit details in header and functions
 * `gendoxy-details-empty-line`: If not _nil_, will use an empty line instead of 
 the details tag to add details. Note that this has effect
