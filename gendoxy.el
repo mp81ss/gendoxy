@@ -69,7 +69,12 @@
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
 
 ;;; Change log:
-;;  1.0 Initial version
+;;
+;;  1.0.1
+;;  Optimized custom parameter documentation generation
+;;
+;;  1.0
+;;  Initial version
 
 ;;; Code:
 
@@ -114,41 +119,43 @@
   "The generated documentation for parameters n/len/length/num/count")
 
 (defconst gendoxy-parameters-map
-  '("The number of ? to ?"   nil   "\\(^n$\\|^count$\\|^len$\\|^length$\\)"
-    "The name of the ?"      nil   "\\(^name$\\)"
-    "The number of * to ?"   t     "^num\\([A-Z][a-z]+\\)"
-    "The number of * to ?"   t     "^num_\\([a-z]+\\)"
-    "The number of * to ?"   t     "^\\([a-z]+\\)Num$"
-    "The number of * to ?"   t     "^\\([a-z]+\\)_num$"
-    "The number of * to ?"   t     "^number\\([A-Z][a-z]+\\)"
-    "The number of * to ?"   t     "^number_\\([a-z]+\\)"
-    "The number of * to ?"   t     "^\\([a-z]+\\)Number$"
-    "The number of * to ?"   t     "^\\([a-z]+\\)_number$"
-    "The length of *"        t     "^len\\([A-Z][a-z]+\\)"
-    "The length of *"        t     "^len_\\([a-z]+\\)"
-    "The length of *"        t     "^\\([a-z]+\\)Len$"
-    "The length of *"        t     "^\\([a-z]+\\)_len$"
-    "The length of *"        t     "^length\\([A-Z][a-z]+\\)"
-    "The length of *"        t     "^length_\\([a-z]+\\)"
-    "The length of *"        t     "^\\([a-z]+\\)Length$"
-    "The length of *"        t     "^\\([a-z]+\\)_length$" 
-    "The size of *"          t     "^sz\\([A-Z][a-z]+\\)"
-    "The size of *"          t     "^sz_\\([a-z]+\\)"
-    "The size of *"          t     "^\\([a-z]+\\)Sz$"
-    "The size of *"          t     "^\\([a-z]+\\)_sz$"
-    "The size of *"          t     "^size\\([A-Z][a-z]+\\)"
-    "The size of *"          t     "^size_\\([a-z]+\\)"
-    "The size of *"          t     "^\\([a-z]+\\)Size$"
-    "The size of *"          t     "^\\([a-z]+\\)_size$"
-    "Pointer to *"           t     "^p\\([A-Z][a-z]+\\)$"
-    "Pointer to *"           t     "^p_\\([a-z]+\\)$"
-    "Pointer to *"           t     "^ptr\\([A-Z][a-z]+\\)$"
-    "Pointer to *"           t     "^ptr_\\([a-z]+\\)$"
-    "Pointer to *"           t     "^\\([a-z]+\\)Ptr$"
-    "Pointer to *"           t     "^\\([a-z]+\\)_ptr$")
+  '("The number of ? to ?"   "\\(^n$\\|^count$\\|^len$\\|^length$\\)"
+    "The name of the ?"      "\\(^name$\\)"
+    "The number of * to ?"   "^num\\([A-Z][a-z]+\\)"
+    "The number of * to ?"   "^num_\\([a-z]+\\)"
+    "The number of * to ?"   "^\\([a-z]+\\)Num$"
+    "The number of * to ?"   "^\\([a-z]+\\)_num$"
+    "The number of * to ?"   "^number\\([A-Z][a-z]+\\)"
+    "The number of * to ?"   "^number_\\([a-z]+\\)"
+    "The number of * to ?"   "^\\([a-z]+\\)Number$"
+    "The number of * to ?"   "^\\([a-z]+\\)_number$"
+    "The length of *"        "^len\\([A-Z][a-z]+\\)"
+    "The length of *"        "^len_\\([a-z]+\\)"
+    "The length of *"        "^\\([a-z]+\\)Len$"
+    "The length of *"        "^\\([a-z]+\\)_len$"
+    "The length of *"        "^length\\([A-Z][a-z]+\\)"
+    "The length of *"        "^length_\\([a-z]+\\)"
+    "The length of *"        "^\\([a-z]+\\)Length$"
+    "The length of *"        "^\\([a-z]+\\)_length$"
+    "The size of *"          "^sz\\([A-Z][a-z]+\\)"
+    "The size of *"          "^sz_\\([a-z]+\\)"
+    "The size of *"          "^\\([a-z]+\\)Sz$"
+    "The size of *"          "^\\([a-z]+\\)_sz$"
+    "The size of *"          "^size\\([A-Z][a-z]+\\)"
+    "The size of *"          "^size_\\([a-z]+\\)"
+    "The size of *"          "^\\([a-z]+\\)Size$"
+    "The size of *"          "^\\([a-z]+\\)_size$"
+    "Pointer to *"           "^p\\([A-Z][a-z]+\\)$"
+    "Pointer to *"           "^p_\\([a-z]+\\)$"
+    "Pointer to *"           "^ptr\\([A-Z][a-z]+\\)$"
+    "Pointer to *"           "^ptr_\\([a-z]+\\)$"
+    "Pointer to *"           "^\\([a-z]+\\)Ptr$"
+    "Pointer to *"           "^\\([a-z]+\\)_ptr$")
 
   "Parameters comment based on parameter name map")
 
+(defconst gendoxy-parameters-map-length (length gendoxy-parameters-map)
+  "The length of the parameter map")
 
 (defun gendoxy-get-typedef-regex (name)
   "Return The regular expression of typedef $name { ... } name ;"
@@ -486,12 +493,14 @@
 
 (defun gendoxy-get-parameter-text-rec (name index)
   "Return a custom parameter description or gendoxy-default-text implementation"
-  (let ( (lst (seq-drop gendoxy-parameters-map index)) )
-    (if lst
-        (if (string-match (car (cddr lst)) name)
-            (seq-take lst 3)
-          (gendoxy-get-parameter-text-rec name (+ index 3)))
-      nil)))
+  (if (< index gendoxy-parameters-map-length)
+      (let ( (lst (subseq gendoxy-parameters-map index (+ index 2))) )
+        (if lst
+            (if (string-match (cadr lst) name)
+                lst
+              (gendoxy-get-parameter-text-rec name (+ index 2)))
+          nil))
+    nil))
 
 (defun gendoxy-get-parameter-text (name)
   "Return a custom parameter description or gendoxy-default-text"
@@ -500,12 +509,12 @@
     (let ( (lst (gendoxy-get-parameter-text-rec name 0)) )
       (setq case-fold-search org-case-setting)
       (if lst
-          (if (cadr lst)
-              (let* ( (temp (match-string 1 name))
-                      (str (concat (downcase (substring temp 0 1))
-                                   (substring temp 1))) )
-                (replace-regexp-in-string "\\*" str (car lst)))
-            (car lst))
+          (let ( (sub-param (match-string 1 name)) (sub-text (car lst)) )
+            (if (string-match "\\*" sub-text)
+                (let ( (str (concat (downcase (substring sub-param 0 1))
+                                    (substring sub-param 1))) )
+                  (replace-regexp-in-string "\\*" str sub-text))
+              sub-text))
         gendoxy-default-text))))
 
 (defun gendoxy-get-parameters (parameters)
