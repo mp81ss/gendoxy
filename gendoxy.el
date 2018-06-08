@@ -494,12 +494,10 @@
 (defun gendoxy-get-parameter-text-rec (name index)
   "Return a custom parameter description or gendoxy-default-text implementation"
   (if (< index gendoxy-parameters-map-length)
-      (let ( (lst (subseq gendoxy-parameters-map index (+ index 2))) )
-        (if lst
-            (if (string-match (cadr lst) name)
-                lst
-              (gendoxy-get-parameter-text-rec name (+ index 2)))
-          nil))
+      (let ( (ender (+ index 2)) )
+        (if (string-match (seq-elt gendoxy-parameters-map (1+ index)) name)
+            (subseq gendoxy-parameters-map index ender)
+          (gendoxy-get-parameter-text-rec name ender)))
     nil))
 
 (defun gendoxy-get-parameter-text (name)
