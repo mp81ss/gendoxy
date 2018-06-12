@@ -71,7 +71,9 @@
 ;;; Change log:
 ;;
 ;;  1.0.1
+;;  Fixed bug on structures
 ;;  Optimized custom parameter documentation generation
+;;  Added alignement on items documentation
 ;;
 ;;  1.0
 ;;  Initial version
@@ -252,6 +254,29 @@
                   " */" gendoxy-nl))
   (message "gendoxy: macro %s documented" macro-name))
 
+(defun gendoxy-is-doc-line (current-line)
+  "Return t if line must end with documentation or nil"
+  (if (or (string-match (concat "[{}]" gendoxy-space-regex "*$")
+                            current-line)
+              (string-match (concat "^" gendoxy-space-regex "*$")
+                            current-line))
+      nil
+    t))
+
+(defun gendoxy-get-items-alignement (start index)
+  "Calculate alignement of items documentation"
+  (if (> (point) start)
+      (let* ( (current-line (gendoxy-get-current-line))
+              (cur-col (current-column))
+              (must-doc-line (gendoxy-is-doc-line current-line)) )
+        (if (> (line-number-at-pos)
+               (prog2 (forward-line -1) (line-number-at-pos)))
+            (move-end-of-line 1)
+          (move-beginning-of-line 1))
+        (let ( (new-index (if must-doc-line (max index cur-col) index)) )
+          (gendoxy-get-items-alignement start new-index)))
+    index))
+
 (defun gendoxy-document-items (start end)
   "Try to document items of a data-structure"
   (goto-char start)
@@ -259,31 +284,32 @@
     (goto-char end)
     (forward-line -1)
     (move-end-of-line 1)
-    (while (> (point) real-start)
-      (let ( (current-line (gendoxy-get-current-line)) )
-        (unless (or (string-match (concat "[{};]" gendoxy-space-regex "*$")
-                                  current-line)
-                    (string-match (concat "^" gendoxy-space-regex "*$")
-                                  current-line))
-          (progn
+    (let ( (alignement (gendoxy-get-items-alignement real-start 0)) )
+      (goto-char end)
+      (forward-line -1)
+      (move-end-of-line 1)
+      (while (> (point) real-start)
+        (let ( (current-line (gendoxy-get-current-line)) )
+          (when (gendoxy-is-doc-line current-line)
+            (progn
+              (move-end-of-line 1)
+              (when (> alignement 0)
+                (insert (make-string (- alignement (current-column)) ?\s)))
+              (insert (concat " /**< " gendoxy-default-text " */")))))
+        (if (> (line-number-at-pos)
+               (prog2 (forward-line -1) (line-number-at-pos)))
             (move-end-of-line 1)
-            (insert (concat " /**< " gendoxy-default-text " */")))))
-      (if (> (line-number-at-pos) (prog2 (forward-line -1)
-                                      (line-number-at-pos)))
-          (move-end-of-line 1)
-        (move-beginning-of-line 1)))))
+          (move-beginning-of-line 1))))))
 
 (defun gendoxy-handle-enum-struct (tag-name full)
-  "Parse an 'enum/struct X { a, b, ... , c };' statement and try to document it"
+  "Parse and document an 'enum/struct X { a[,;] b[,;], ... [,;] c };' statement"
   (move-beginning-of-line 1)
-  (let ( (org (point)) (terminator (search-forward ";" nil t)) )
+  (let ( (org (point)) (terminator (search-forward "}" nil t)) )
     (goto-char org)
     (if (re-search-forward
          (concat "^" gendoxy-space-regex "*" tag-name gendoxy-space-regex
                  "*\\(" gendoxy-c-id-regex "\\)" gendoxy-space-regex "*{"
-                 gendoxy-space-regex "*" gendoxy-c-id-regex "\\("
-                 gendoxy-space-regex "*," gendoxy-space-regex "*"
-                 gendoxy-c-id-regex "\\)*" gendoxy-space-regex "*}")
+                 gendoxy-space-regex "*" gendoxy-c-id-regex "[^}]*}")
          terminator
          t)
         (let ( (type-name (match-string 1)) )
