@@ -1,15 +1,15 @@
 ;;; gendoxy.el --- Generate doxygen documentation from C declarations
-     
+
 ;; Copyright (C) 2018 Michele Pes
-     
+
 ;; Author: Michele Pes <mp81ss@rambler.ru>
-;; Created: 21 May 2018
+;; Created: 23 June 2018
 ;; Keywords: gendoxy, docs, doxygen
-;; Version: 1.0
+;; Version: 1.0.2
 ;; Homepage: https://github.com/mp81ss/gendoxy
-     
+
 ;; This file is not part of GNU Emacs.
-     
+
 ;; Copyright (c) <2018> <Michele Pes>
 
 ;; All rights reserved.
@@ -46,7 +46,7 @@
 
 
 ;;; Commentary:
-     
+
 ;; This package provides some commands to generate doxygen documentation.
 ;; The main command is: 'gendoxy-tag'. It generates the documentation for
 ;; a C declaration (typedef, variable, struct, enum or function). Moreover, it
@@ -70,6 +70,10 @@
 
 ;;; Change log:
 ;;
+;;  1.0.2
+;;  Critical bugfix on invalid C code invocation (due to regex backtracking)
+;;  Improved other regex
+;;
 ;;  1.0.1
 ;;  Fixed bug on structures
 ;;  Optimized custom parameter documentation generation
@@ -79,6 +83,7 @@
 ;;  Initial version
 
 ;;; Code:
+
 
 (defvar gendoxy-backslash nil
   "If not nil, backslash will be used instead of asperand")
@@ -99,16 +104,16 @@
   (if gendoxy-backslash (string (?\\)) (string ?@))
   "The doxygen tag char, backslash or asperand (default)")
 
-(defconst gendoxy-space-regex "[ \f\t\n\r\v]" "All blanks")
+(defconst gendoxy-space-regex "[ \t\v\r\f\n]" "All blanks")
 
-(defconst gendoxy-space-ptr-regex "[ \f\t\n\r\v\\*]" "All blanks plus pointer")
+(defconst gendoxy-space-ptr-regex "[ \t\v\r\f\n\\*]" "All blanks plus pointer")
 
-(defconst gendoxy-c-id-regex "_*[[:alpha:]]+[A-Z0-9a-z_]*"
+(defconst gendoxy-c-id-regex "[[:alpha:]_][[:alnum:]_]\\{0,30\\}"
   "C identifier regex")
 
 (defconst gendoxy-macro-regexp
   (concat "^[[:space:]]*#[[:space:]]*define[[:space:]]+"
-          "\\(" gendoxy-c-id-regex "\\([[:space:]]*(.*)\\)?\\)")
+          "\\(" gendoxy-c-id-regex "\\([[:space:]]*(.+)\\)?\\)")
  "Regular expression for #define ... macros returning new defined symbol")
 
 (defconst gendoxy-function-pointer-name-regex
@@ -449,7 +454,7 @@
       (gendoxy-dump-parameters (seq-drop parameters 3)))))
 
 (defun gendoxy-find-last (str pattern &optional index)
-  "Find last occurrence of pattern in str"
+  "Find last occurrence of pattern in str. Pattern must be one character"
   (let ( (found (string-match pattern str (if index (1+ index) 0))) )
     (if found (gendoxy-find-last str pattern found) index)))
 
