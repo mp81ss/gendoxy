@@ -3,7 +3,7 @@
 ;; Copyright (C) 2018 Michele Pes
 
 ;; Author: Michele Pes <mp81ss@rambler.ru>
-;; Created: 23 June 2018
+;; Created: 21 June 2018
 ;; Keywords: gendoxy, docs, doxygen
 ;; Version: 1.0.2
 ;; Homepage: https://github.com/mp81ss/gendoxy
@@ -69,6 +69,9 @@
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
 
 ;;; Change log:
+;;
+;;  1.0.3
+;;  Fixed enum/struct documentation
 ;;
 ;;  1.0.2
 ;;  Critical bugfix on invalid C code invocation (due to regex backtracking)
@@ -336,7 +339,7 @@
                     gendoxy-nl " * " gendoxy-default-text gendoxy-nl " */"
                     gendoxy-nl))
     (when is-full
-      (gendoxy-document-items (point) (search-forward ";" nil t)))
+      (gendoxy-document-items (point) (search-forward "}" nil t)))
     (message "gendoxy: typedef %s %s documented" name type-name)))
 
 (defun gendoxy-handle-typedef-generic ()
@@ -378,7 +381,10 @@
 
 (defun gendoxy-handle-typedef (is-full)
   "Handle typedef constructs"
-  (let ( (org (point)) (terminator (search-forward ";" nil t)) )
+  (let ( (org (point))
+         (terminator (re-search-forward (concat "}" gendoxy-space-regex "*;")
+                                        nil
+                                        t)) )
     (goto-char org)
     (if (re-search-forward (gendoxy-get-typedef-regex "enum") terminator t)
         (progn
