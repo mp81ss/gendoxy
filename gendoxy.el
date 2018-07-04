@@ -2,11 +2,11 @@
 
 ;; Copyright (C) 2018 Michele Pes
 
-;; Author: Michele Pes <mp81ss@rambler.ru>
-;; Created: 21 June 2018
-;; Keywords: gendoxy, docs, doxygen
-;; Version: 1.0.2
-;; Homepage: https://github.com/mp81ss/gendoxy
+;; Author:    Michele Pes <mp81ss@rambler.ru>
+;; Created:   04 July 2018
+;; Keywords:  gendoxy, docs, doxygen
+;; Version:   1.0.4
+;; Homepage:  https://github.com/mp81ss/gendoxy
 
 ;; This file is not part of GNU Emacs.
 
@@ -70,6 +70,11 @@
 
 ;;; Change log:
 ;;
+;;  1.0.4
+;;  Fixed some global variable statement
+;;  Fixed some typedef declarations statement
+;;  Improved items documentation
+
 ;;  1.0.3
 ;;  Fixed enum/struct documentation
 ;;
@@ -264,12 +269,11 @@
 
 (defun gendoxy-is-doc-line (current-line)
   "Return t if line must end with documentation or nil"
-  (if (or (string-match (concat "[{}]" gendoxy-space-regex "*$")
-                            current-line)
-              (string-match (concat "^" gendoxy-space-regex "*$")
-                            current-line))
-      nil
-    t))
+  (and (not (string-match (concat "[{}]" gendoxy-space-regex "*$")
+                          current-line))
+       (not (string-match (concat "^" gendoxy-space-regex "*$")
+                          current-line))
+       (string-match gendoxy-c-id-regex current-line)))
 
 (defun gendoxy-get-items-alignement (start index)
   "Calculate alignement of items documentation"
@@ -409,7 +413,7 @@
                    (substring
                     statement 0 (string-match "[\\[=;]" statement)))) )
         (if (and (string-match (concat "^\\(" gendoxy-c-id-regex
-                                       gendoxy-space-ptr-regex "\\)+"
+                                       gendoxy-space-ptr-regex "+\\)+"
                                        gendoxy-c-id-regex "$")
                                stm)
                  (string-match (concat "\\(" gendoxy-c-id-regex "\\)$") stm))
