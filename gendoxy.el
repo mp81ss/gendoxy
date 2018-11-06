@@ -3,9 +3,9 @@
 ;; Copyright (C) 2018 Michele Pes
 
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   04 July 2018
+;; Created:   06 November 2018
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.4
+;; Version:   1.0.5
 ;; Homepage:  https://github.com/mp81ss/gendoxy
 
 ;; This file is not part of GNU Emacs.
@@ -69,6 +69,10 @@
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
 
 ;;; Change log:
+;;
+;;  1.0.5
+;;  Bugfix on typedef items
+;;  Optimized items documentation
 ;;
 ;;  1.0.4
 ;;  Fixed some global variable statement
@@ -265,15 +269,13 @@
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "def")))
   (insert (concat macro-name gendoxy-nl " * " gendoxy-default-text gendoxy-nl
                   " */" gendoxy-nl))
-  (message "gendoxy: macro %s documented" macro-name))
+  (message "gendoxy: Macro %s documented" macro-name))
 
 (defun gendoxy-is-doc-line (current-line)
   "Return t if line must end with documentation or nil"
-  (and (not (string-match (concat "[{}]" gendoxy-space-regex "*$")
-                          current-line))
-       (not (string-match (concat "^" gendoxy-space-regex "*$")
-                          current-line))
-       (string-match gendoxy-c-id-regex current-line)))
+  (and (string-match gendoxy-c-id-regex current-line)
+       (string-match (concat "[^{}]" gendoxy-space-regex "*$")
+                          current-line)))
 
 (defun gendoxy-get-items-alignement (start index)
   "Calculate alignement of items documentation"
@@ -332,7 +334,7 @@
                           type-name gendoxy-nl " * " gendoxy-default-text
                           gendoxy-nl " */" gendoxy-nl))
           (message "gendoxy: %s %s documented" tag-name type-name))
-      (message "gendoxy: invalid %s was not documented" tag-name))))
+      (message "gendoxy: Invalid %s was not documented" tag-name))))
 
 (defun gendoxy-handle-typedef-enum-struct (name is-full)
   "Handle typedef enum... or typedef struct... \
@@ -380,30 +382,43 @@
                 (insert (concat " * " gendoxy-default-text gendoxy-nl " */"
                                 gendoxy-nl))
                 (message "gendoxy: typedef %s documented" name))
-            (message "gendoxy: invalid typedef was not documented")))
-      (message "gendoxy: fix your code"))))
+            (message "gendoxy: Invalid typedef was not documented")))
+      (message "gendoxy: Fix your code"))))
+
+(defun gendoxy-get-typedef-enum-struct-terminator ()
+    "Get terminator for typedef enum/struct, return nil on error"
+  (re-search-forward "[{;]" nil t)
+  (let ((c (match-string 0)))
+    (if c
+        (if (string-equal c ";")
+            (point)
+          (if (and (re-search-forward "}" nil t)
+                   (re-search-forward ";" nil t))
+              (point)
+            nil))
+      nil)))
 
 (defun gendoxy-handle-typedef (is-full)
   "Handle typedef constructs"
-  (let ( (org (point))
-         (terminator (re-search-forward (concat "}" gendoxy-space-regex "*;")
-                                        nil
-                                        t)) )
-    (goto-char org)
-    (if (re-search-forward (gendoxy-get-typedef-regex "enum") terminator t)
+  (let ( (org (point)) (terminator (gendoxy-get-typedef-enum-struct-terminator)) )
+    (if terminator
         (progn
-          (goto-char org)
-          (gendoxy-handle-typedef-enum-struct "enum" is-full))
-      (progn
-        (goto-char org)
-        (if (re-search-forward (gendoxy-get-typedef-regex "struct")
-                               terminator
-                               t)
-            (progn (goto-char org)
-                   (gendoxy-handle-typedef-enum-struct "struct" is-full))
-          (progn
-            (goto-char org)
-            (gendoxy-handle-typedef-generic)))))))
+         (goto-char org)
+         (if (re-search-forward (gendoxy-get-typedef-regex "enum") terminator t)
+             (progn
+               (goto-char org)
+               (gendoxy-handle-typedef-enum-struct "enum" is-full))
+           (progn
+             (goto-char org)
+             (if (re-search-forward (gendoxy-get-typedef-regex "struct")
+                                    terminator
+                                    t)
+                 (progn (goto-char org)
+                        (gendoxy-handle-typedef-enum-struct "struct" is-full))
+               (progn
+                 (goto-char org)
+                 (gendoxy-handle-typedef-generic))))))
+       (message "gendoxy: Fix your code"))))
 
 (defun gendoxy-try-var (statement)
   "Check if statement is a valid variable declaration and if yes document it. \
@@ -424,7 +439,7 @@
               (message "Variable %s documented" name)
               t)
           (prog2
-              (message "gendoxy: invalid statement not documented")
+              (message "gendoxy: Invalid statement was not documented")
               t)))
     nil))
 
@@ -484,6 +499,7 @@
 (defun gendoxy-get-parameters-array (str)
   "Return a list of parameters as strings"
   (gendoxy-get-parameters-array-rec str '()))
+
 
 ; This function is correct, but emacs stack does not tolerate it, so I rewrote
 ; an equivalent, more efficent, less recursive version
@@ -606,9 +622,9 @@
           (if (and parameters-string parameters-str func-name have-return)
               (progn
                 (dump-function func-name have-return parameters)
-                (message "gendoxy: function %s documented" func-name))
-            (message "gendoxy: invalid complex function was not documented")))
-      (message "gendoxy: invalid complex function was not documented"))))
+                (message "gendoxy: Function %s documented" func-name))
+            (message "gendoxy: Invalid complex function was not documented")))
+      (message "gendoxy: Invalid complex function was not documented"))))
 
 (defun gendoxy-handle-simple-function (statement)
   "Document a standard function"
@@ -627,9 +643,9 @@
           (if have-return
               (progn
                 (dump-function func-name have-return parameters)
-                (message "gendoxy: function %s documented" func-name))
-            (message "gendoxy: invalid function was not documented")))
-      (message "gendoxy: invalid function was not documented"))))
+                (message "gendoxy: Function %s documented" func-name))
+            (message "gendoxy: Invalid function was not documented")))
+      (message "gendoxy: Invalid function was not documented"))))
 
 (defun gendoxy-handle-func-or-var ()
   "Handle prototypes, (simple or complex (involving function pointers)) and \
@@ -643,8 +659,8 @@
                 (if (eq (car parenthesis) 1)
                     (gendoxy-handle-simple-function statement)
                   (gendoxy-handle-complex-function statement))
-              (message "fix your code"))))
-      (message "fix your code"))))
+              (message "gendoxy: Fix your code"))))
+      (message "gendoxy: Fix your code"))))
 
 (defun gendoxy-tag-core (is-full)
     "Generate general template for source item in current line. \
@@ -681,7 +697,7 @@
                     gendoxy-nl))
     (gendoxy-add-details "This module..." 3)
     (insert (concat " */" gendoxy-nl gendoxy-nl))
-    (message "gendoxy: header documented"))
+    (message "gendoxy: Header documented"))
 
 (defun gendoxy-group-core (is-full)
   "Generate general template for a block of items and its items if requested"
@@ -701,8 +717,8 @@
         (unless (char-after)
           (insert gendoxy-nl))
         (gendoxy-group-end)
-        (message "Group documented"))
-      (message "gendoxy: parser error"))))
+        (message "gendoxy: Group documented"))
+      (message "gendoxy: Parser error"))))
 
 (defun gendoxy-group-start ()
   "Generate general template for the beginning of a block of items"
