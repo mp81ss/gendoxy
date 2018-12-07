@@ -1,11 +1,15 @@
+; TODO: generalize nameAttr parameter documentation generation
+; typedef void (*ptimer_callback_t)(void* argument);
+; the above do not generate param documentation
+
 ;;; gendoxy.el --- Generate doxygen documentation from C declarations
 
 ;; Copyright (C) 2018 Michele Pes
 
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   06 November 2018
+;; Created:   07 December 2018
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.5
+;; Version:   1.0.6
 ;; Homepage:  https://github.com/mp81ss/gendoxy
 
 ;; This file is not part of GNU Emacs.
@@ -70,28 +74,33 @@
 
 ;;; Change log:
 ;;
-;;  1.0.5
+;;  1.0.6 (2018-12-07)
+;;  Improved automatic parameter documentation
+;;  Improved internal code
+;;
+;;  1.0.5 (2018-11-06)
 ;;  Bugfix on typedef items
 ;;  Optimized items documentation
+;;  Uniformed error messages
 ;;
-;;  1.0.4
+;;  1.0.4 (2018-07-04)
 ;;  Fixed some global variable statement
 ;;  Fixed some typedef declarations statement
 ;;  Improved items documentation
 
-;;  1.0.3
+;;  1.0.3 (2018-06-21)
 ;;  Fixed enum/struct documentation
 ;;
-;;  1.0.2
+;;  1.0.2 (2018-06-19)
 ;;  Critical bugfix on invalid C code invocation (due to regex backtracking)
 ;;  Improved other regex
 ;;
-;;  1.0.1
+;;  1.0.1 (2018-06-12)
 ;;  Fixed bug on structures
 ;;  Optimized custom parameter documentation generation
 ;;  Added alignement on items documentation
 ;;
-;;  1.0
+;;  1.0 (2018-06-04)
 ;;  Initial version
 
 ;;; Code:
@@ -134,42 +143,69 @@
           gendoxy-c-id-regex "\\)" gendoxy-space-regex "*[()]")
   "Regular expression that searches the name in a function pointer")
 
-(defconst gendoxy-parameter-description-n "The number of ? to ?"
-  "The generated documentation for parameters n/len/length/num/count")
-
 (defconst gendoxy-parameters-map
-  '("The number of ? to ?"   "\\(^n$\\|^count$\\|^len$\\|^length$\\)"
-    "The name of the ?"      "\\(^name$\\)"
-    "The number of * to ?"   "^num\\([A-Z][a-z]+\\)"
-    "The number of * to ?"   "^num_\\([a-z]+\\)"
-    "The number of * to ?"   "^\\([a-z]+\\)Num$"
-    "The number of * to ?"   "^\\([a-z]+\\)_num$"
-    "The number of * to ?"   "^number\\([A-Z][a-z]+\\)"
-    "The number of * to ?"   "^number_\\([a-z]+\\)"
-    "The number of * to ?"   "^\\([a-z]+\\)Number$"
-    "The number of * to ?"   "^\\([a-z]+\\)_number$"
-    "The length of *"        "^len\\([A-Z][a-z]+\\)"
-    "The length of *"        "^len_\\([a-z]+\\)"
-    "The length of *"        "^\\([a-z]+\\)Len$"
-    "The length of *"        "^\\([a-z]+\\)_len$"
-    "The length of *"        "^length\\([A-Z][a-z]+\\)"
-    "The length of *"        "^length_\\([a-z]+\\)"
-    "The length of *"        "^\\([a-z]+\\)Length$"
-    "The length of *"        "^\\([a-z]+\\)_length$"
-    "The size of *"          "^sz\\([A-Z][a-z]+\\)"
-    "The size of *"          "^sz_\\([a-z]+\\)"
-    "The size of *"          "^\\([a-z]+\\)Sz$"
-    "The size of *"          "^\\([a-z]+\\)_sz$"
-    "The size of *"          "^size\\([A-Z][a-z]+\\)"
-    "The size of *"          "^size_\\([a-z]+\\)"
-    "The size of *"          "^\\([a-z]+\\)Size$"
-    "The size of *"          "^\\([a-z]+\\)_size$"
-    "Pointer to *"           "^p\\([A-Z][a-z]+\\)$"
-    "Pointer to *"           "^p_\\([a-z]+\\)$"
-    "Pointer to *"           "^ptr\\([A-Z][a-z]+\\)$"
-    "Pointer to *"           "^ptr_\\([a-z]+\\)$"
-    "Pointer to *"           "^\\([a-z]+\\)Ptr$"
-    "Pointer to *"           "^\\([a-z]+\\)_ptr$")
+  '(
+    "The number of ? to ?"
+    "^\\(n$\\|[Cc]ount$\\|[Ll]en\\(gth\\)?\\)$"
+    ()
+
+    "The name of the ?"
+    "^\\([Nn]ame\\)$"
+    ()
+
+    "Pointer to buffer to ?"
+    "^\\([Bb]uf\\(fer\\)?\\)$"
+    ()
+
+    "The number of * to ?"
+    "^[Nn]um\\(ber\\)?_?\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (2)
+
+    "The number of * to ?"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_?[Nn]um\\(ber\\)?$"
+    (1)
+
+    "The length of *"
+    "^[Ll]en\\(gth\\)?_?\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (2)
+
+    "The length of *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_?[Ll]en\\(gth\\)?$"
+    (1)
+
+    "The size of *"
+    "^[Ss]i?ze?_?\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (1)
+
+    "The size of *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_?[Ss]i?ze?$"
+    (1)
+
+    "Pointer to *"
+    "^[Pp]tr_?\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (1)
+
+    "Pointer to *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_?[Pp]tr$"
+    (1)
+
+    "Pointer to *"
+    "^p_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (1)
+
+    "Pointer to *"
+    "^p\\([A-Z][a-z]\\{2,\\}\\)$"
+    (1)
+
+    "The * of *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)$"
+    (1 3)
+
+    "The * of *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)\\([A-Z][a-z]\\{3,\\}\\)$"
+    (1 3)
+
+    )
 
   "Parameters comment based on parameter name map")
 
@@ -548,10 +584,22 @@
                       str)
         (match-string 1 str))))
 
+(defun gendoxy-get-parameter-patterns (doc regx name indexes)
+  "Return the parameter documentation after ALL substitutions"
+  (if (null indexes)
+      doc
+    (let* ( (index (string-match "\\*" doc))
+            (matches (string-match regx name))
+            (pattern (downcase (match-string (car indexes) name)))
+            (new-doc (concat (substring doc 0 index)
+                             pattern
+                             (substring doc (1+ index)))) )
+      (gendoxy-get-parameter-patterns new-doc regx name (cdr indexes)))))
+
 (defun gendoxy-get-parameter-text-rec (name index)
-  "Return a custom parameter description or gendoxy-default-text implementation"
+  "Return a triple of corresponding parameter documentation or nil"
   (if (< index gendoxy-parameters-map-length)
-      (let ( (ender (+ index 2)) )
+      (let ( (ender (+ index 3)) )
         (if (string-match (seq-elt gendoxy-parameters-map (1+ index)) name)
             (subseq gendoxy-parameters-map index ender)
           (gendoxy-get-parameter-text-rec name ender)))
@@ -564,16 +612,13 @@
     (let ( (lst (gendoxy-get-parameter-text-rec name 0)) )
       (setq case-fold-search org-case-setting)
       (if lst
-          (let ( (sub-param (match-string 1 name)) (sub-text (car lst)) )
-            (if (string-match "\\*" sub-text)
-                (let ( (str (concat (downcase (substring sub-param 0 1))
-                                    (substring sub-param 1))) )
-                  (replace-regexp-in-string "\\*" str sub-text))
-              sub-text))
+          (let* ( (doc (car lst)) (other (cdr lst))
+                  (regx (car other)) (indexes (cadr other)) )
+            (gendoxy-get-parameter-patterns doc regx name indexes))
         gendoxy-default-text))))
 
 (defun gendoxy-get-parameters (parameters)
-  "Take a list of comma-separated of complex(?) parameters. Return a list of \
+  "Take a list of comma-separated of (complex?) parameters. Return a list of \
    triples (name, 0 for in or 1 for out, txt). Return an empty list (nil) if \
    no parameters"
   (if (or (not parameters) (and (eq (length parameters) 1)
@@ -684,13 +729,12 @@
     (goto-char (point-min))
     (insert (concat "/**" gendoxy-nl))
     (insert (concat " * " (gendoxy-get-tag "file" 6) (buffer-name) gendoxy-nl))
-    (insert (concat " * " (gendoxy-get-tag "copyright" 1) "(c) "
+    (insert (concat " * " (gendoxy-get-tag "copyright" 1) "BSD-3-Clause"
+                    gendoxy-nl))
+    (insert (concat " * " (gendoxy-get-tag "author" 4)
                     (if (string= "" user-full-name)
                         user-real-login-name
-                      user-full-name)
-                    " " (format-time-string "%Y") gendoxy-nl))
-    (insert (concat " * " (gendoxy-get-tag "author" 4) user-real-login-name
-                    gendoxy-nl))
+                      user-full-name) gendoxy-nl))
     (insert (concat " * " (gendoxy-get-tag "date" 6) (current-time-string)
                     gendoxy-nl))
     (insert (concat " * " (gendoxy-get-tag "brief" 5) "Header of ..."
