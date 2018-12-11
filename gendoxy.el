@@ -1,15 +1,11 @@
-; TODO: generalize nameAttr parameter documentation generation
-; typedef void (*ptimer_callback_t)(void* argument);
-; the above do not generate param documentation
-
 ;;; gendoxy.el --- Generate doxygen documentation from C declarations
 
 ;; Copyright (C) 2018 Michele Pes
 
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   07 December 2018
+;; Created:   11 December 2018
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.6
+;; Version:   1.0.7
 ;; Homepage:  https://github.com/mp81ss/gendoxy
 
 ;; This file is not part of GNU Emacs.
@@ -73,6 +69,9 @@
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
 
 ;;; Change log:
+;;
+;;  1.0.7 (2018-12-11)
+;;  Bugfix on void functions
 ;;
 ;;  1.0.6 (2018-12-07)
 ;;  Improved automatic parameter documentation
@@ -683,7 +682,8 @@
                                                        0
                                                        name-index)))
                 (have-return (gendoxy-have-return-p return-type))
-                (parameters-token (split-string (cadr blocks) "," t))
+                (parameters-token ; Add space to avoid parsing error
+                 (split-string (concat " " (cadr blocks)) "," t))
                 (parameters (gendoxy-get-parameters parameters-token)) )
           (if have-return
               (progn
