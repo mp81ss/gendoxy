@@ -3,14 +3,14 @@
 ;; Copyright (C) 2018 Michele Pes
 
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   11 December 2018
+;; Created:   30 May 2019
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.7
+;; Version:   1.0.8
 ;; Homepage:  https://github.com/mp81ss/gendoxy
 
 ;; This file is not part of GNU Emacs.
 
-;; Copyright (c) <2018> <Michele Pes>
+;; Copyright (c) <2018-2019> <Michele Pes>
 
 ;; All rights reserved.
 
@@ -70,6 +70,10 @@
 
 ;;; Change log:
 ;;
+;;  1.0.8 (2019-05-30)
+;;  Bugfix on backslash handling
+;;  Improved some internal functions
+;;
 ;;  1.0.7 (2018-12-11)
 ;;  Bugfix on void functions
 ;;
@@ -119,10 +123,6 @@
 
 
 (defconst gendoxy-nl (string ?\n) "The newline string")
-
-(defconst gendoxy-tag-string
-  (if gendoxy-backslash (string (?\\)) (string ?@))
-  "The doxygen tag char, backslash or asperand (default)")
 
 (defconst gendoxy-space-regex "[ \t\v\r\f\n]" "All blanks")
 
@@ -211,21 +211,19 @@
 (defconst gendoxy-parameters-map-length (length gendoxy-parameters-map)
   "The length of the parameter map")
 
+(defun gendoxy-tag-string ()
+  "Return thr tag character as string"
+  (if gendoxy-backslash (string ?\\) (string ?@)))
+
 (defun gendoxy-get-typedef-regex (name)
   "Return The regular expression of typedef $name { ... } name ;"
   (concat gendoxy-space-regex "*typedef" gendoxy-space-regex "*" name
           gendoxy-space-regex "*[^{]*{[^}]*}" gendoxy-space-regex
           "*\\(" gendoxy-c-id-regex "\\)[^;]*;"))
 
-(defun gendoxy-get-default-char-as-string ()
-  "Return user choice string for doxygen generated documentation (\\ or @)"
-  (if gendoxy-backslash
-      (string (?\\))
-    (string ?@)))
-
 (defun gendoxy-get-tag (tag &optional additional-spaces)
   "Return a string that is a doxygen tag, if additional-spaces default to one"
-  (let ( (str (concat (gendoxy-get-default-char-as-string) tag))
+  (let ( (str (concat (gendoxy-tag-string) tag))
          (spaces-number (if additional-spaces additional-spaces 1)) )
     (concat str (make-string spaces-number ?\s))))
 
