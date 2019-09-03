@@ -73,6 +73,8 @@
 ;;  1.0.8 (2019-05-30)
 ;;  Bugfix on backslash handling
 ;;  Improved some internal functions
+;;  Added newline before documentation blocks if missing
+;;  Using pseudo-automatic tests
 ;;
 ;;  1.0.7 (2018-12-11)
 ;;  Bugfix on void functions
@@ -296,8 +298,19 @@
         (insert (concat " * " (gendoxy-get-tag "details" spaces))))
       (insert (concat (if str str gendoxy-default-text) gendoxy-nl)))))
 
+(defun gendoxy-add-line-before ()
+  "Add an empty line if previous line is not empty"
+  (when (= (forward-line -1) 0)
+    (if (string-match "^[[:space:]]*[^[:space:]]+" (gendoxy-get-current-line))
+        (progn
+          (forward-line 1)
+          (move-beginning-of-line 1)
+          (insert gendoxy-nl))
+      (forward-line 1))))
+
 (defun gendoxy-put-macro (macro-name)
   "Document given macro name"
+  (gendoxy-add-line-before)
   (move-beginning-of-line 1)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "def")))
   (insert (concat macro-name gendoxy-nl " * " gendoxy-default-text gendoxy-nl
@@ -363,6 +376,7 @@
           (when full
             (gendoxy-document-items org (1- (point))))
           (goto-char org)
+          (gendoxy-add-line-before)
           (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag tag-name)
                           type-name gendoxy-nl " * " gendoxy-default-text
                           gendoxy-nl " */" gendoxy-nl))
@@ -374,6 +388,7 @@
    The variable name can be enum or struct.    \
    The variable is-full controls whether its items must be documented"
   (let ( (type-name (match-string 1)) )
+    (gendoxy-add-line-before)
     (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag name) type-name
                     gendoxy-nl " * " gendoxy-default-text gendoxy-nl " */"
                     gendoxy-nl))
@@ -394,6 +409,7 @@
                                   gendoxy-space-regex "*[()][^;]+;")
                           statement)
             (let ( (name (match-string 1 statement)) )
+              (gendoxy-add-line-before)
               (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "typedef")
                               name gendoxy-nl))
               (insert (concat " * " gendoxy-default-text gendoxy-nl " */"
@@ -410,6 +426,7 @@
                                      gendoxy-space-regex "*;$")
                              statement))
               (let ( (name (match-string 1 statement)) )
+                (gendoxy-add-line-before)
                 (insert (concat "/**" gendoxy-nl " * "
                                 (gendoxy-get-tag "typedef") name gendoxy-nl))
                 (insert (concat " * " gendoxy-default-text gendoxy-nl " */"
@@ -466,6 +483,7 @@
                                stm)
                  (string-match (concat "\\(" gendoxy-c-id-regex "\\)$") stm))
             (let ( (name (match-string 1 stm)) )
+              (gendoxy-add-line-before)
               (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "var") name
                               gendoxy-nl " * " (gendoxy-get-tag "brief")
                               gendoxy-default-text gendoxy-nl " */" gendoxy-nl))
@@ -637,6 +655,7 @@
 
 (defun dump-function (name return-code parameters)
   "Dump the function documentation"
+  (gendoxy-add-line-before)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "brief")
                   "Summary" gendoxy-nl))
   (gendoxy-add-details)
@@ -765,6 +784,7 @@
 (defun gendoxy-group-start ()
   "Generate general template for the beginning of a block of items"
   (interactive)
+  (gendoxy-add-line-before)
   (move-beginning-of-line nil)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "name")
                   gendoxy-default-text gendoxy-nl " * " (gendoxy-get-tag "{" 0)
