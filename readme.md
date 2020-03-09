@@ -43,5 +43,5 @@ For a more productive environment, just [bind](https://www.gnu.org/software/emac
 Additionally, you can set up your details/tag char configuration.  
 Once your setup is done, open a header file, add the header if missing and go with comments!
 
-gendoxy is written in **purely functional** elisp (no setq or equivalent)
+gendoxy is written in **purely functional** elisp (no setq or equivalent)  
 gendoxy **does not have** any external dependency, even _cl-lib_ is never called!
