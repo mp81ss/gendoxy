@@ -1,35 +1,32 @@
 ;;; gendoxy.el --- Generate doxygen documentation from C declarations
-
-;; Copyright (C) 2018 Michele Pes
-
+;;
+;; Copyright (C) 2018-2020, Michele Pes, All rights reserved
+;;
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   11 December 2018
+;; Created:   09 Mar 2020
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.7
+;; Version:   1.0.9
 ;; Homepage:  https://github.com/mp81ss/gendoxy
-
+;;
+;;
 ;; This file is not part of GNU Emacs.
-
-;; Copyright (c) <2018> <Michele Pes>
-
-;; All rights reserved.
-
+;;
 ;; Redistribution and use in source and binary forms, with or without
 ;; modification, are permitted (subject to the limitations in the
 ;; disclaimer below) provided that the following conditions are met:
-
+;;
 ;;  * Redistributions of source code must retain the above copyright
 ;;    notice, this list of conditions and the following disclaimer.
-
+;;
 ;;  * Redistributions in binary form must reproduce the above copyright
 ;;    notice, this list of conditions and the following disclaimer in the
 ;;    documentation and/or other materials provided with the
 ;;    distribution.
-
+;;
 ;;  * Neither the name of <Owner Organization> nor the names of its
 ;;    contributors may be used to endorse or promote products derived
 ;;    from this software without specific prior written permission.
-
+;;
 ;; NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
 ;; GRANTED BY THIS LICENSE.  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
 ;; HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -43,10 +40,10 @@
 ;; WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 ;; OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 ;; IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
+;;
+;;
 ;;; Commentary:
-
+;;
 ;; This package provides some commands to generate doxygen documentation.
 ;; The main command is: 'gendoxy-tag'. It generates the documentation for
 ;; a C declaration (typedef, variable, struct, enum or function). Moreover, it
@@ -67,8 +64,21 @@
 ;; gendoxy-skip-details: If not nil, will omit details in header and functions
 ;; gendoxy-details-empty-line: If not nil, will use an empty line instead of the
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
-
+;;
 ;;; Change log:
+;;
+;;  1.0.9 (2020-03-09)
+;;  Improved macro documentation
+;;  Improved general automatic parameter documentation
+;;  Improved internal code
+;;  Added various tests
+;;  Estethic code changes
+;;
+;;  1.0.8 (2019-05-30)
+;;  Bugfix on backslash handling
+;;  Improved some internal functions
+;;  Added newline before documentation blocks if missing
+;;  Using pseudo-automatic tests
 ;;
 ;;  1.0.7 (2018-12-11)
 ;;  Bugfix on void functions
@@ -86,7 +96,7 @@
 ;;  Fixed some global variable statement
 ;;  Fixed some typedef declarations statement
 ;;  Improved items documentation
-
+;;
 ;;  1.0.3 (2018-06-21)
 ;;  Fixed enum/struct documentation
 ;;
@@ -101,7 +111,7 @@
 ;;
 ;;  1.0 (2018-06-04)
 ;;  Initial version
-
+;;
 ;;; Code:
 
 
@@ -120,10 +130,6 @@
 
 (defconst gendoxy-nl (string ?\n) "The newline string")
 
-(defconst gendoxy-tag-string
-  (if gendoxy-backslash (string (?\\)) (string ?@))
-  "The doxygen tag char, backslash or asperand (default)")
-
 (defconst gendoxy-space-regex "[ \t\v\r\f\n]" "All blanks")
 
 (defconst gendoxy-space-ptr-regex "[ \t\v\r\f\n\\*]" "All blanks plus pointer")
@@ -133,7 +139,7 @@
 
 (defconst gendoxy-macro-regexp
   (concat "^[[:space:]]*#[[:space:]]*define[[:space:]]+"
-          "\\(" gendoxy-c-id-regex "\\([[:space:]]*(.+)\\)?\\)")
+          "\\(" gendoxy-c-id-regex "\\)")
  "Regular expression for #define ... macros returning new defined symbol")
 
 (defconst gendoxy-function-pointer-name-regex
@@ -143,14 +149,21 @@
   "Regular expression that searches the name in a function pointer")
 
 (defconst gendoxy-parameters-map
-  '(
-    "The number of ? to ?"
+  '("The number of ? to ?"
     "^\\(n$\\|[Cc]ount$\\|[Ll]en\\(gth\\)?\\)$"
     ()
 
     "The name of the ?"
     "^\\([Nn]ame\\)$"
     ()
+
+    "The name of *"
+    "^[Nn]ame_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
+    (1)
+
+    "The size of *"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_?[Ss]i?ze?$"
+    (1)
 
     "Pointer to buffer to ?"
     "^\\([Bb]uf\\(fer\\)?\\)$"
@@ -198,18 +211,16 @@
 
     "The * of *"
     "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)$"
-    (1 3)
+    (3 1)
 
     "The * of *"
     "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)\\([A-Z][a-z]\\{3,\\}\\)$"
-    (1 3)
-
-    )
-
+    (3 1))
   "Parameters comment based on parameter name map")
 
-(defconst gendoxy-parameters-map-length (length gendoxy-parameters-map)
-  "The length of the parameter map")
+(defun gendoxy-tag-string ()
+  "Return thr tag character as string"
+  (if gendoxy-backslash (string ?\\) (string ?@)))
 
 (defun gendoxy-get-typedef-regex (name)
   "Return The regular expression of typedef $name { ... } name ;"
@@ -217,21 +228,15 @@
           gendoxy-space-regex "*[^{]*{[^}]*}" gendoxy-space-regex
           "*\\(" gendoxy-c-id-regex "\\)[^;]*;"))
 
-(defun gendoxy-get-default-char-as-string ()
-  "Return user choice string for doxygen generated documentation (\\ or @)"
-  (if gendoxy-backslash
-      (string (?\\))
-    (string ?@)))
-
 (defun gendoxy-get-tag (tag &optional additional-spaces)
   "Return a string that is a doxygen tag, if additional-spaces default to one"
-  (let ( (str (concat (gendoxy-get-default-char-as-string) tag))
+  (let ( (str (concat (gendoxy-tag-string) tag))
          (spaces-number (if additional-spaces additional-spaces 1)) )
     (concat str (make-string spaces-number ?\s))))
 
 (defun gendoxy-get-current-line ()
   "Return the current line without trailing newline"
-  (let ( (current-line (thing-at-point 'line t)) )
+  (let ((current-line (thing-at-point 'line t)))
     (substring current-line 0 (string-match "\n" current-line))))
 
 (defun gendoxy-get-first-token (current-line)
@@ -259,11 +264,12 @@
   (gendoxy-ltrim (gendoxy-rtrim str)))
 
 (defun gendoxy-get-statement (&optional leave-square)
-  "Return current statement as string or nil if no semicolon is found      \
-   as delimiter. If '=' is found, it will be left as last char before ';'. \
+  "Return current statement as string or nil if no semicolon or open brace \
+   is found as delimiter. If '=' is found, it will be left as last char \
+   before ';'. \
    If '[' is found and leave-square is nil, it will be replaced with ';'"
   (move-beginning-of-line 1)
-  (if (re-search-forward "\\([^;]*;\\)" nil t)
+  (if (re-search-forward "\\([^;{]\\{2,\\}[{;]\\)" nil t)
       (let* ( (tempnl (match-string 1))
               (temp (replace-regexp-in-string gendoxy-nl " " tempnl))
               (eq-index (string-match "=" temp))
@@ -277,7 +283,7 @@
 
 (defun gendoxy-count-parenthesis-rec (str pattern count)
   "Core recursive function for count-parenthesis"
-  (let ( (index (string-match pattern str)) )
+  (let ((index (string-match pattern str)))
     (if index
         (gendoxy-count-parenthesis-rec (substring str (1+ index))
                                        pattern
@@ -298,8 +304,19 @@
         (insert (concat " * " (gendoxy-get-tag "details" spaces))))
       (insert (concat (if str str gendoxy-default-text) gendoxy-nl)))))
 
+(defun gendoxy-add-line-before ()
+  "Add an empty line if previous line is not empty"
+  (when (= (forward-line -1) 0)
+    (if (string-match "^[[:space:]]*[^[:space:]]+" (gendoxy-get-current-line))
+        (progn
+          (forward-line 1)
+          (move-beginning-of-line 1)
+          (insert gendoxy-nl))
+      (forward-line 1))))
+
 (defun gendoxy-put-macro (macro-name)
   "Document given macro name"
+  (gendoxy-add-line-before)
   (move-beginning-of-line 1)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "def")))
   (insert (concat macro-name gendoxy-nl " * " gendoxy-default-text gendoxy-nl
@@ -322,23 +339,23 @@
                (prog2 (forward-line -1) (line-number-at-pos)))
             (move-end-of-line 1)
           (move-beginning-of-line 1))
-        (let ( (new-index (if must-doc-line (max index cur-col) index)) )
+        (let ((new-index (if must-doc-line (max index cur-col) index)))
           (gendoxy-get-items-alignement start new-index)))
     index))
 
 (defun gendoxy-document-items (start end)
   "Try to document items of a data-structure"
   (goto-char start)
-  (let ( (real-start (search-forward "{")) )
+  (let ((real-start (search-forward "{")))
     (goto-char end)
     (forward-line -1)
     (move-end-of-line 1)
-    (let ( (alignement (gendoxy-get-items-alignement real-start 0)) )
+    (let ((alignement (gendoxy-get-items-alignement real-start 0)))
       (goto-char end)
       (forward-line -1)
       (move-end-of-line 1)
       (while (> (point) real-start)
-        (let ( (current-line (gendoxy-get-current-line)) )
+        (let ((current-line (gendoxy-get-current-line)))
           (when (gendoxy-is-doc-line current-line)
             (progn
               (move-end-of-line 1)
@@ -361,10 +378,11 @@
                  gendoxy-space-regex "*" gendoxy-c-id-regex "[^}]*}")
          terminator
          t)
-        (let ( (type-name (match-string 1)) )
+        (let ((type-name (match-string 1)))
           (when full
             (gendoxy-document-items org (1- (point))))
           (goto-char org)
+          (gendoxy-add-line-before)
           (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag tag-name)
                           type-name gendoxy-nl " * " gendoxy-default-text
                           gendoxy-nl " */" gendoxy-nl))
@@ -375,7 +393,8 @@
   "Handle typedef enum... or typedef struct... \
    The variable name can be enum or struct.    \
    The variable is-full controls whether its items must be documented"
-  (let ( (type-name (match-string 1)) )
+  (let ((type-name (match-string 1)))
+    (gendoxy-add-line-before)
     (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag name) type-name
                     gendoxy-nl " * " gendoxy-default-text gendoxy-nl " */"
                     gendoxy-nl))
@@ -395,7 +414,8 @@
                                   gendoxy-c-id-regex "\\)"
                                   gendoxy-space-regex "*[()][^;]+;")
                           statement)
-            (let ( (name (match-string 1 statement)) )
+            (let ((name (match-string 1 statement)))
+              (gendoxy-add-line-before)
               (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "typedef")
                               name gendoxy-nl))
               (insert (concat " * " gendoxy-default-text gendoxy-nl " */"
@@ -411,7 +431,8 @@
                (string-match (concat "\\(" gendoxy-c-id-regex "\\)"
                                      gendoxy-space-regex "*;$")
                              statement))
-              (let ( (name (match-string 1 statement)) )
+              (let ((name (match-string 1 statement)))
+                (gendoxy-add-line-before)
                 (insert (concat "/**" gendoxy-nl " * "
                                 (gendoxy-get-tag "typedef") name gendoxy-nl))
                 (insert (concat " * " gendoxy-default-text gendoxy-nl " */"
@@ -435,7 +456,8 @@
 
 (defun gendoxy-handle-typedef (is-full)
   "Handle typedef constructs"
-  (let ( (org (point)) (terminator (gendoxy-get-typedef-enum-struct-terminator)) )
+  (let ( (org (point))
+         (terminator (gendoxy-get-typedef-enum-struct-terminator)) )
     (if terminator
         (progn
          (goto-char org)
@@ -459,17 +481,18 @@
   "Check if statement is a valid variable declaration and if yes document it. \
    Return nil if statement is not a valid variable declaration"
   (if (or (string-match "=" statement) (not (string-match "(" statement)))
-      (let ( (stm (gendoxy-trim
-                   (substring
-                    statement 0 (string-match "[\\[=;]" statement)))) )
+      (let ((stm (gendoxy-trim
+                  (substring
+                   statement 0 (string-match "[\\[=;]" statement)))))
         (if (and (string-match (concat "^\\(" gendoxy-c-id-regex
                                        gendoxy-space-ptr-regex "+\\)+"
                                        gendoxy-c-id-regex "$")
                                stm)
                  (string-match (concat "\\(" gendoxy-c-id-regex "\\)$") stm))
-            (let ( (name (match-string 1 stm)) )
-              (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "var") name
-                              gendoxy-nl " * " (gendoxy-get-tag "brief")
+            (let ((name (match-string 1 stm)))
+              (gendoxy-add-line-before)
+              (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "var")
+                              name gendoxy-nl " * " (gendoxy-get-tag "brief")
                               gendoxy-default-text gendoxy-nl " */" gendoxy-nl))
               (message "Variable %s documented" name)
               t)
@@ -515,12 +538,12 @@
 
 (defun gendoxy-find-last (str pattern &optional index)
   "Find last occurrence of pattern in str. Pattern must be one character"
-  (let ( (found (string-match pattern str (if index (1+ index) 0))) )
+  (let ((found (string-match pattern str (if index (1+ index) 0))))
     (if found (gendoxy-find-last str pattern found) index)))
 
 (defun gendoxy-get-parameters-array-rec (str parameters &optional index)
   "Return a list of parameters as strings implementation"
-  (let ( (terminator (string-match "," str index)) )
+  (let ((terminator (string-match "," str index)))
     (if terminator
         (let ( (token (substring str 0 terminator))
                (parenthesis (gendoxy-count-parenthesis
@@ -543,7 +566,7 @@
 ;; (defun gendoxy-get-matching-block-rec (str level index)
 ;;   "Return the string of last parenthesized block implementation"
 ;;   (if (>= index 0)
-;;       (let ( (c (elt str index)) (new-index (1- index)) )
+;;       (let ((c (elt str index)) (new-index (1- index)))
 ;;         (if (or (char-equal c ?\() (char-equal c ?\)))
 ;;             (if (char-equal c ?\()
 ;;                 (if (eq level 0)
@@ -566,7 +589,7 @@
 
 (defun gendoxy-get-matching-block (str)
   "Return the string of last parenthesized block"
-  (let ( (parenthesis (gendoxy-count-parenthesis str)) )
+  (let ((parenthesis (gendoxy-count-parenthesis str)))
     (if (> (car parenthesis) 0)
         (gendoxy-get-matching-block-rec str 0 (1- (gendoxy-find-last str ")")))
       nil)))
@@ -578,13 +601,13 @@
           (string-match gendoxy-function-pointer-name-regex str)
           (match-string 2 str))
     (prog2
-        (string-match (concat "\\(" gendoxy-c-id-regex "\\)" gendoxy-space-regex
-                              "*$")
+        (string-match (concat "\\(" gendoxy-c-id-regex "\\)"
+                              gendoxy-space-regex "*$")
                       str)
         (match-string 1 str))))
 
 (defun gendoxy-get-parameter-patterns (doc regx name indexes)
-  "Return the parameter documentation after ALL substitutions"
+  "Return the parameter documentation after all substitutions"
   (if (null indexes)
       doc
     (let* ( (index (string-match "\\*" doc))
@@ -593,12 +616,12 @@
             (new-doc (concat (substring doc 0 index)
                              pattern
                              (substring doc (1+ index)))) )
-      (gendoxy-get-parameter-patterns new-doc regx name (cdr indexes)))))
+      (gendoxy-get-parameter-patterns new-doc regx name (cdr-safe indexes)))))
 
 (defun gendoxy-get-parameter-text-rec (name index)
   "Return a triple of corresponding parameter documentation or nil"
-  (if (< index gendoxy-parameters-map-length)
-      (let ( (ender (+ index 3)) )
+  (if (< index (length gendoxy-parameters-map))
+      (let ((ender (+ index 3)))
         (if (string-match (seq-elt gendoxy-parameters-map (1+ index)) name)
             (subseq gendoxy-parameters-map index ender)
           (gendoxy-get-parameter-text-rec name ender)))
@@ -606,15 +629,11 @@
 
 (defun gendoxy-get-parameter-text (name)
   "Return a custom parameter description or gendoxy-default-text"
-  (let ( (org-case-setting case-fold-search) )
-    (setq case-fold-search nil)
-    (let ( (lst (gendoxy-get-parameter-text-rec name 0)) )
-      (setq case-fold-search org-case-setting)
-      (if lst
-          (let* ( (doc (car lst)) (other (cdr lst))
-                  (regx (car other)) (indexes (cadr other)) )
-            (gendoxy-get-parameter-patterns doc regx name indexes))
-        gendoxy-default-text))))
+  (let ((lst (gendoxy-get-parameter-text-rec name 0)))
+    (if lst
+        (let ( (doc (car lst)) (regx (cadr lst)) (indexes (car (cddr lst))) )
+          (gendoxy-get-parameter-patterns doc regx name indexes))
+      gendoxy-default-text)))
 
 (defun gendoxy-get-parameters (parameters)
   "Take a list of comma-separated of (complex?) parameters. Return a list of \
@@ -639,6 +658,7 @@
 
 (defun dump-function (name return-code parameters)
   "Dump the function documentation"
+  (gendoxy-add-line-before)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "brief")
                   "Summary" gendoxy-nl))
   (gendoxy-add-details)
@@ -650,7 +670,7 @@
 
 (defun gendoxy-handle-complex-function (statement)
   "Handle a prototype to a function with some function's pointer"
-  (let ( (parameters-string (gendoxy-get-matching-block statement)) )
+  (let ((parameters-string (gendoxy-get-matching-block statement)))
     (if parameters-string
         (let* ( (parameters-str (substring parameters-string 1
                                            (gendoxy-find-last parameters-string
@@ -672,8 +692,8 @@
 
 (defun gendoxy-handle-simple-function (statement)
   "Document a standard function"
-  (let* ( (blocks (split-string statement "[();]" t))
-          (ret-and-name (gendoxy-trim (car blocks)))
+  (let* ( (blocks (split-string statement "[()]" t))
+          (ret-and-name (gendoxy-trim (car-safe blocks)))
           (name-index (string-match (concat "\\(" gendoxy-c-id-regex "\\)$")
                                     ret-and-name)) )
     (if name-index
@@ -699,7 +719,7 @@
     (goto-char org)
     (if statement
         (unless (gendoxy-try-var statement) ; try to document a variable
-          (let ( (parenthesis (gendoxy-count-parenthesis statement)) )
+          (let ((parenthesis (gendoxy-count-parenthesis statement)))
             (if (eq (car parenthesis) (cadr parenthesis))
                 (if (eq (car parenthesis) 1)
                     (gendoxy-handle-simple-function statement)
@@ -710,7 +730,7 @@
 (defun gendoxy-tag-core (is-full)
     "Generate general template for source item in current line. \
      The variable is-full controls whether single items must be documented"
-    (let ( (current-line (gendoxy-get-current-line)) )
+    (let ((current-line (gendoxy-get-current-line)))
       (move-beginning-of-line 1)
       (cond
        ((string-match gendoxy-macro-regexp current-line)
@@ -747,7 +767,7 @@
   "Generate general template for a block of items and its items if requested"
   (move-beginning-of-line 1)
   (gendoxy-group-start)
-  (let ( (first-token (gendoxy-get-first-token (gendoxy-get-current-line))) )
+  (let ((first-token (gendoxy-get-first-token (gendoxy-get-current-line))))
     (if first-token
         (progn
           (when is-full
@@ -767,6 +787,7 @@
 (defun gendoxy-group-start ()
   "Generate general template for the beginning of a block of items"
   (interactive)
+  (gendoxy-add-line-before)
   (move-beginning-of-line nil)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "name")
                   gendoxy-default-text gendoxy-nl " * " (gendoxy-get-tag "{" 0)
