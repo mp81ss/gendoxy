@@ -38,7 +38,7 @@ that generates a header documentation for current file
 
 # Notes
 The gendoxy package doesn't define a new mode, just offers some commands to use.  
-For a more productive environment, just [bind](https://www.gnu.org/software/emacs/manual/html_node/emacs/Key-Bindings.html) your favorite key to  
+For a more productive environment, just [bind](https://www.gnu.org/software/emacs/manual/html_node/emacs/Key-Bindings.html) your favorite key to
 `gendoxy-tag` and/or `gendoxy-tag-header` commands.  
 Additionally, you can set up your details/tag char configuration.  
 Once your setup is done, open a header file, add the header if missing and go with comments!
