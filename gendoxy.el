@@ -3,9 +3,9 @@
 ;; Copyright (C) 2018-2020, Michele Pes, All rights reserved
 ;;
 ;; Author:    Michele Pes <mp81ss@rambler.ru>
-;; Created:   09 Mar 2020
+;; Created:   08 Aug 2020
 ;; Keywords:  gendoxy, docs, doxygen
-;; Version:   1.0.9
+;; Version:   1.0.10
 ;; Homepage:  https://github.com/mp81ss/gendoxy
 ;;
 ;;
@@ -66,6 +66,13 @@
 ;; details tag. Note that this has effect if gendoxy-skip-details is nil ONLY.
 ;;
 ;;; Change log:
+;;
+;;  1.0.10 (2020-08-08)
+;;  Replaced non-standard alias with core function (thanks to John DeRoo) 
+;;  Improved function/var detection
+;;  Removed parameter documentation if name is missing
+;;  Added/improved tests
+;;  Fixed user message
 ;;
 ;;  1.0.9 (2020-03-09)
 ;;  Improved macro documentation
@@ -263,22 +270,14 @@
   "Remove leading and trailing spaces from str"
   (gendoxy-ltrim (gendoxy-rtrim str)))
 
-(defun gendoxy-get-statement (&optional leave-square)
+(defun gendoxy-get-statement ()
   "Return current statement as string or nil if no semicolon or open brace \
-   is found as delimiter. If '=' is found, it will be left as last char \
-   before ';'. \
-   If '[' is found and leave-square is nil, it will be replaced with ';'"
+   or equal char is found as delimiter."
   (move-beginning-of-line 1)
-  (if (re-search-forward "\\([^;{]\\{2,\\}[{;]\\)" nil t)
+  (if (re-search-forward "\\([^=;{]\\{3,\\}[=;{]\\)" nil t)
       (let* ( (tempnl (match-string 1))
-              (temp (replace-regexp-in-string gendoxy-nl " " tempnl))
-              (eq-index (string-match "=" temp))
-              (sq-index (if leave-square nil (string-match "\\[" temp)))
-              (desquared (if sq-index (substring temp 0 sq-index) temp))
-              (dequal (if eq-index (substring desquared 0 (1+ eq-index))
-                        desquared))
-              (trimmed (gendoxy-trim dequal)) )
-        (if (or eq-index sq-index) (concat trimmed ";") trimmed))
+              (temp (replace-regexp-in-string gendoxy-nl " " tempnl)) )
+        (gendoxy-trim temp))
     nil))
 
 (defun gendoxy-count-parenthesis-rec (str pattern count)
@@ -494,7 +493,7 @@
               (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "var")
                               name gendoxy-nl " * " (gendoxy-get-tag "brief")
                               gendoxy-default-text gendoxy-nl " */" gendoxy-nl))
-              (message "Variable %s documented" name)
+              (message "gendoxy: Variable %s documented" name)
               t)
           (prog2
               (message "gendoxy: Invalid statement was not documented")
@@ -623,7 +622,7 @@
   (if (< index (length gendoxy-parameters-map))
       (let ((ender (+ index 3)))
         (if (string-match (seq-elt gendoxy-parameters-map (1+ index)) name)
-            (subseq gendoxy-parameters-map index ender)
+            (seq-subseq gendoxy-parameters-map index ender)
           (gendoxy-get-parameter-text-rec name ender)))
     nil))
 
@@ -650,7 +649,9 @@
                                                        parameter-original))))
             (others (gendoxy-get-parameters (cdr parameters)))
             (param-name (gendoxy-get-complex-name parameter)) )
-      (if param-name
+      (if (and param-name (cdr (split-string parameter-original
+                                                        gendoxy-space-regex
+                                                        t)))
           (cons param-name (cons direction
                                  (cons (gendoxy-get-parameter-text param-name)
                                        others)))
@@ -692,19 +693,22 @@
 
 (defun gendoxy-handle-simple-function (statement)
   "Document a standard function"
-  (let* ( (blocks (split-string statement "[()]" t))
-          (ret-and-name (gendoxy-trim (car-safe blocks)))
+  (let* ( (open-index (string-match "(" statement))
+          (close-index (string-match ")" statement))
+          (ret-and-name (substring statement 0 open-index))
           (name-index (string-match (concat "\\(" gendoxy-c-id-regex "\\)$")
-                                    ret-and-name)) )
+                                    (gendoxy-rtrim ret-and-name))) )
     (if name-index
         (let* ( (func-name (match-string 1 ret-and-name))
                 (return-type (gendoxy-rtrim (substring ret-and-name
                                                        0
                                                        name-index)))
                 (have-return (gendoxy-have-return-p return-type))
-                (parameters-token ; Add space to avoid parsing error
-                 (split-string (concat " " (cadr blocks)) "," t))
-                (parameters (gendoxy-get-parameters parameters-token)) )
+                (parameter-tokens (split-string (substring statement
+                                                           (1+ open-index)
+                                                           close-index)
+                                                "," t))
+                (parameters (gendoxy-get-parameters parameter-tokens)) )
           (if have-return
               (progn
                 (dump-function func-name have-return parameters)
@@ -715,7 +719,7 @@
 (defun gendoxy-handle-func-or-var ()
   "Handle prototypes, (simple or complex (involving function pointers)) and \
    variables"
-  (let ( (org (point)) (statement (gendoxy-get-statement t)) )
+  (let ( (org (point)) (statement (gendoxy-get-statement)) )
     (goto-char org)
     (if statement
         (unless (gendoxy-try-var statement) ; try to document a variable
