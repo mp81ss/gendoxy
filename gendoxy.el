@@ -67,6 +67,17 @@
 ;;
 ;;; Change log:
 ;;
+;;  1.0.11 (2021-04-10)
+;;  Fixed horrible documentation on parameters without underline
+;;  Fixed header generation
+;;  Removed non M-d friendly patterns
+;;  Removed bad name of non-conformant function
+;;  Added support for DLL prototypes
+;;  Improved comment for param/return in case of function pointer
+;;  If first parameter is out, it will be always inout
+;;  Added '()' on documented functions message
+;;  Improved documentation
+;;
 ;;  1.0.10 (2020-08-08)
 ;;  Replaced non-standard alias with core function (thanks to John DeRoo) 
 ;;  Improved function/var detection
@@ -212,17 +223,10 @@
     "^p_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
     (1)
 
-    "Pointer to *"
-    "^p\\([A-Z][a-z]\\{2,\\}\\)$"
-    (1)
-
     "The * of *"
-    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)$"
-    (3 1)
-
-    "The * of *"
-    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{3,\\}\\)\\([A-Z][a-z]\\{3,\\}\\)$"
+    "^\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)_\\(\\([A-Z]\\|[a-z]\\)[a-z]\\{2,\\}\\)$"
     (3 1))
+
   "Parameters comment based on parameter name map")
 
 (defun gendoxy-tag-string ()
@@ -500,14 +504,15 @@
               t)))
     nil))
 
-(defun gendoxy-have-return-p (str)
-  "Return nil on error, 0 for void, 1 if not void"
+(defun gendoxy-have-return (str)
+  "Return nil on error, 0 for void, 1 if not void, 2 for function pointer"
   (if (string-match gendoxy-c-id-regex str)
       (if (or (not (string-match "void" str))
               (string-match "\\*" str)
               (string-match "(" str))
-          1
-        0)
+          (let ( (pc (car (gendoxy-count-parenthesis str))))
+            (if (>= pc 2) 2 1))
+          0)
     nil))
 
 (defun gendoxy-get-direction (parameter)
@@ -526,14 +531,16 @@
         t
       nil)))
 
-(defun gendoxy-dump-parameters (parameters)
+(defun gendoxy-dump-parameters (parameters lap)
   "Insert passed parameters into buffer"
   (when parameters
     (progn
-      (insert (concat " * " (gendoxy-get-tag "param" 0)
-                      (if (cadr parameters) "[in]" "[out]") " " (car parameters)
-                      " " (car (cddr parameters)) gendoxy-nl))
-      (gendoxy-dump-parameters (seq-drop parameters 3)))))
+      (insert (concat " * " (gendoxy-get-tag "param" 0)))
+      (insert (if (and (eq lap 0) (not (cadr parameters))) "[inout]"
+                (if (cadr parameters) "[in]" "[out]")))
+      (insert (concat " " (car parameters) " " (car (cddr parameters))
+                      gendoxy-nl))
+      (gendoxy-dump-parameters (seq-drop parameters 3) (1+ lap)))))
 
 (defun gendoxy-find-last (str pattern &optional index)
   "Find last occurrence of pattern in str. Pattern must be one character"
@@ -626,18 +633,20 @@
           (gendoxy-get-parameter-text-rec name ender)))
     nil))
 
-(defun gendoxy-get-parameter-text (name)
+(defun gendoxy-get-parameter-text (name org-name)
   "Return a custom parameter description or gendoxy-default-text"
-  (let ((lst (gendoxy-get-parameter-text-rec name 0)))
-    (if lst
-        (let ( (doc (car lst)) (regx (cadr lst)) (indexes (car (cddr lst))) )
-          (gendoxy-get-parameter-patterns doc regx name indexes))
-      gendoxy-default-text)))
+  (let ((pc (gendoxy-count-parenthesis org-name)))
+    (if (> (car pc) 0) "A pointer to function"
+      (let ((lst (gendoxy-get-parameter-text-rec name 0)))
+        (if lst
+            (let ( (doc (car lst)) (regx (cadr lst)) (indexes (car (cddr lst))))
+              (message "<%s>" doc)
+              (gendoxy-get-parameter-patterns doc regx name indexes))
+          gendoxy-default-text)))))
 
 (defun gendoxy-get-parameters (parameters)
   "Take a list of comma-separated of (complex?) parameters. Return a list of \
-   triples (name, 0 for in or 1 for out, txt). Return an empty list (nil) if \
-   no parameters"
+   triples (name, 0 for in or 1 for out, txt). Return nil if no parameters"
   (if (or (not parameters) (and (eq (length parameters) 1)
                                 (string-equal (gendoxy-trim (car parameters))
                                               "void")))
@@ -645,28 +654,32 @@
     (let* ( (parameter-original (car parameters))
             (direction (gendoxy-get-direction parameter-original))
             (parameter (gendoxy-rtrim (substring parameter-original 0
-                                         (string-match "\\["
+                                                 (string-match "\\["
                                                        parameter-original))))
             (others (gendoxy-get-parameters (cdr parameters)))
-            (param-name (gendoxy-get-complex-name parameter)) )
+            (param-name (gendoxy-get-complex-name parameter))
+            (splitted (split-string parameter-original gendoxy-space-regex t)) )
       (if (and param-name (cdr (split-string parameter-original
-                                                        gendoxy-space-regex
-                                                        t)))
-          (cons param-name (cons direction
-                                 (cons (gendoxy-get-parameter-text param-name)
-                                       others)))
+                                             gendoxy-space-ptr-regex
+                                             t)))
+          (cons param-name
+                (cons direction
+                      (cons (gendoxy-get-parameter-text param-name
+                                                        parameter-original)
+                            others)))
         others))))
 
-(defun dump-function (name return-code parameters)
+(defun gendoxy-dump-function (name return-code parameters)
   "Dump the function documentation"
   (gendoxy-add-line-before)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "brief")
                   "Summary" gendoxy-nl))
   (gendoxy-add-details)
-  (gendoxy-dump-parameters parameters)
-  (when (eq return-code 1)
+  (gendoxy-dump-parameters parameters 0)
+  (when (>= return-code 1)
     (insert (concat " * " (gendoxy-get-tag "return")
-                    gendoxy-default-text gendoxy-nl)))
+                    (if (eq return-code 2) "A pointer to a function"
+                      gendoxy-default-text) gendoxy-nl)))
   (insert (concat " */" gendoxy-nl)))
 
 (defun gendoxy-handle-complex-function (statement)
@@ -679,15 +692,15 @@
                 (name-and-ret (substring statement 0
                                          (- (length statement)
                                             (length parameters-string))))
-                (have-return (gendoxy-have-return-p name-and-ret))
+                (have-return (gendoxy-have-return name-and-ret))
                 (func-name (gendoxy-get-complex-name name-and-ret))
                 (parameters-array (gendoxy-get-parameters-array
                                    parameters-str))
                 (parameters (gendoxy-get-parameters parameters-array)) )
           (if (and parameters-string parameters-str func-name have-return)
               (progn
-                (dump-function func-name have-return parameters)
-                (message "gendoxy: Function %s documented" func-name))
+                (gendoxy-dump-function func-name have-return parameters)
+                (message "gendoxy: Function %s() documented" func-name))
             (message "gendoxy: Invalid complex function was not documented")))
       (message "gendoxy: Invalid complex function was not documented"))))
 
@@ -703,7 +716,7 @@
                 (return-type (gendoxy-rtrim (substring ret-and-name
                                                        0
                                                        name-index)))
-                (have-return (gendoxy-have-return-p return-type))
+                (have-return (gendoxy-have-return return-type))
                 (parameter-tokens (split-string (substring statement
                                                            (1+ open-index)
                                                            close-index)
@@ -711,15 +724,19 @@
                 (parameters (gendoxy-get-parameters parameter-tokens)) )
           (if have-return
               (progn
-                (dump-function func-name have-return parameters)
-                (message "gendoxy: Function %s documented" func-name))
+                (gendoxy-dump-function func-name have-return parameters)
+                (message "gendoxy: Function %s() documented" func-name))
             (message "gendoxy: Invalid function was not documented")))
       (message "gendoxy: Invalid function was not documented"))))
 
 (defun gendoxy-handle-func-or-var ()
   "Handle prototypes, (simple or complex (involving function pointers)) and \
    variables"
-  (let ( (org (point)) (statement (gendoxy-get-statement)) )
+  (let ( (org (point))
+         (statement (replace-regexp-in-string
+                     (concat gendoxy-space-regex "*__declspec"
+                             gendoxy-space-regex "*\\([^)]+)\\)") " "
+                             (gendoxy-get-statement))))
     (goto-char org)
     (if statement
         (unless (gendoxy-try-var statement) ; try to document a variable
@@ -753,40 +770,20 @@
     (goto-char (point-min))
     (insert (concat "/**" gendoxy-nl))
     (insert (concat " * " (gendoxy-get-tag "file" 6) (buffer-name) gendoxy-nl))
-    (insert (concat " * " (gendoxy-get-tag "copyright" 1) "BSD-3-Clause"
+    (insert (concat " * " (gendoxy-get-tag "brief" 5) "Header of"
+                    gendoxy-nl))
+    (insert (concat " * " (gendoxy-get-tag "date" 6) (current-time-string)
                     gendoxy-nl))
     (insert (concat " * " (gendoxy-get-tag "author" 4)
                     (if (string= "" user-full-name)
                         user-real-login-name
                       user-full-name) gendoxy-nl))
-    (insert (concat " * " (gendoxy-get-tag "date" 6) (current-time-string)
+    (insert (concat " * " (gendoxy-get-tag "copyright" 1) "BSD-3-Clause"
                     gendoxy-nl))
-    (insert (concat " * " (gendoxy-get-tag "brief" 5) "Header of ..."
-                    gendoxy-nl))
-    (gendoxy-add-details "This module..." 3)
+    (unless gendoxy-skip-details
+      (insert (concat " * " gendoxy-nl " * This module" gendoxy-nl)))
     (insert (concat " */" gendoxy-nl gendoxy-nl))
-    (message "gendoxy: Header documented"))
-
-(defun gendoxy-group-core (is-full)
-  "Generate general template for a block of items and its items if requested"
-  (move-beginning-of-line 1)
-  (gendoxy-group-start)
-  (let ((first-token (gendoxy-get-first-token (gendoxy-get-current-line))))
-    (if first-token
-        (progn
-          (when is-full
-            (progn (move-end-of-line 1) (insert " /**< Descirption... */")))
-        (while (and (< (line-number-at-pos) (prog2 (forward-line)
-                                                (line-number-at-pos)))
-                    (string= first-token (gendoxy-get-first-token
-                                          (gendoxy-get-current-line))))
-          (when is-full
-            (progn (move-end-of-line 1) (insert " /**< Descirption... */"))))
-        (unless (char-after)
-          (insert gendoxy-nl))
-        (gendoxy-group-end)
-        (message "gendoxy: Group documented"))
-      (message "gendoxy: Parser error"))))
+    (message "gendoxy: Header documented in file %s" (buffer-name)))
 
 (defun gendoxy-group-start ()
   "Generate general template for the beginning of a block of items"
@@ -794,7 +791,8 @@
   (gendoxy-add-line-before)
   (move-beginning-of-line nil)
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "name")
-                  gendoxy-default-text gendoxy-nl " * " (gendoxy-get-tag "{" 0)
+                  "Group title" gendoxy-nl " * " gendoxy-default-text
+                  gendoxy-nl " * " (gendoxy-get-tag "{" 0)
                   gendoxy-nl " */" gendoxy-nl)))
 
 (defun gendoxy-group-end ()
@@ -804,25 +802,46 @@
   (insert (concat "/**" gendoxy-nl " * " (gendoxy-get-tag "}" 0) gendoxy-nl
                   " */" gendoxy-nl)))
 
-(defun gendoxy-group-header ()
-  "Generate general template for a block of items"
-  (interactive)
-  (gendoxy-group-core nil))
+(defun gendoxy-group-core (is-full)
+  "Generate general template for a block of items and its items if requested"
+  (move-beginning-of-line 1)
+  (gendoxy-group-start)
+  (let ((first-token (gendoxy-get-first-token (gendoxy-get-current-line))))
+    (if first-token
+        (progn
+          (when is-full
+            (progn (move-end-of-line 1) (insert " /**< Description */")))
+        (while (and (< (line-number-at-pos) (prog2 (forward-line)
+                                                (line-number-at-pos)))
+                    (string= first-token (gendoxy-get-first-token
+                                          (gendoxy-get-current-line))))
+          (when is-full
+            (progn (move-end-of-line 1) (insert " /**< Description */"))))
+        (unless (char-after)
+          (insert gendoxy-nl))
+        (gendoxy-group-end)
+        (message "gendoxy: Group documented"))
+      (message "gendoxy: Parser error"))))
 
 (defun gendoxy-group ()
   "Generate general template for a block of items and its items if requested"
   (interactive)
   (gendoxy-group-core t))
 
-(defun gendoxy-tag-header ()
-    "Generate general template for source item in current line"
-    (interactive)
-    (gendoxy-tag-core nil))
+(defun gendoxy-group-header ()
+  "Generate general template for a block of items"
+  (interactive)
+  (gendoxy-group-core nil))
 
 (defun gendoxy-tag ()
     "Generate general template for source item in current line and its items"
     (interactive)
     (gendoxy-tag-core t))
+
+(defun gendoxy-tag-header ()
+    "Generate general template for source item in current line"
+    (interactive)
+    (gendoxy-tag-core nil))
 
 
 (provide 'gendoxy-header)
