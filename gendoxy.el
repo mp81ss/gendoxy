@@ -764,6 +764,7 @@
         (gendoxy-handle-enum-struct "struct" is-full))
       (t (gendoxy-handle-func-or-var)))))
 
+;;;###autoload
 (defun gendoxy-header ()
     "Generate generic template header for current file"
     (interactive)
@@ -785,6 +786,7 @@
     (insert (concat " */" gendoxy-nl gendoxy-nl))
     (message "gendoxy: Header documented in file %s" (buffer-name)))
 
+;;;###autoload
 (defun gendoxy-group-start ()
   "Generate general template for the beginning of a block of items"
   (interactive)
@@ -795,6 +797,7 @@
                   gendoxy-nl " * " (gendoxy-get-tag "{" 0)
                   gendoxy-nl " */" gendoxy-nl)))
 
+;;;###autoload
 (defun gendoxy-group-end ()
   "Generate general template for the beginning of a block of items"
   (interactive)
@@ -823,34 +826,32 @@
         (message "gendoxy: Group documented"))
       (message "gendoxy: Parser error"))))
 
+;;;###autoload
 (defun gendoxy-group ()
   "Generate general template for a block of items and its items if requested"
   (interactive)
   (gendoxy-group-core t))
 
+;;;###autoload
 (defun gendoxy-group-header ()
   "Generate general template for a block of items"
   (interactive)
   (gendoxy-group-core nil))
 
+;;;###autoload
 (defun gendoxy-tag ()
     "Generate general template for source item in current line and its items"
     (interactive)
     (gendoxy-tag-core t))
 
+;;;###autoload
 (defun gendoxy-tag-header ()
     "Generate general template for source item in current line"
     (interactive)
     (gendoxy-tag-core nil))
 
 
-(provide 'gendoxy-header)
-(provide 'gendoxy-tag)
-(provide 'gendoxy-tag-header)
-(provide 'gendoxy-group)
-(provide 'gendoxy-group-header)
-(provide 'gendoxy-group-start)
-(provide 'gendoxy-group-end)
+(provide 'gendoxy)
 
 
 ;;; filename ends here
